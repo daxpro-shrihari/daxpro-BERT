@@ -42,14 +42,14 @@ id2label = {0: 'Backdoor',
  13: 'Vulnerability_scanner',
  14: 'XSS'}
 
-def FLLE_converter(user_input):
-    df_llm = pd.DataFrame(columns=['Text', 'Label', 'Type'])
-    df_llm['Text'] = required_columns[required_columns.columns[:-2]].apply(lambda x: x.name+'$'+x.astype(str), 
-                                   axis=0).apply(np.vectorize(lambda x: hashlib.shake_256(x.encode("utf-8")).hexdigest(16)), 
-                                                 axis=0).agg(' '.join, axis=1)   # df.shape (2219201, 63)
-    # df_llm[['Label', 'Type']] = required_columns[required_columns.columns[[-2,-1]]].iloc[:5000]
-    df_llm[['Label', 'Type']] = required_columns[required_columns.columns[[-2,-1]]]
-    return FLLE_input
+# def FLLE_converter(user_input):
+#     df_llm = pd.DataFrame(columns=['Text', 'Label', 'Type'])
+#     df_llm['Text'] = required_columns[required_columns.columns[:-2]].apply(lambda x: x.name+'$'+x.astype(str), 
+#                                    axis=0).apply(np.vectorize(lambda x: hashlib.shake_256(x.encode("utf-8")).hexdigest(16)), 
+#                                                  axis=0).agg(' '.join, axis=1)   # df.shape (2219201, 63)
+#     # df_llm[['Label', 'Type']] = required_columns[required_columns.columns[[-2,-1]]].iloc[:5000]
+#     df_llm[['Label', 'Type']] = required_columns[required_columns.columns[[-2,-1]]]
+#     return FLLE_input
 
 if user_input and button :
     test_sample = tokenizer([user_input], add_special_tokens=True, truncation=True, padding="max_length", max_length=512, return_tensors='pt')
