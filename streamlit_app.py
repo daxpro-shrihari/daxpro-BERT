@@ -8,17 +8,17 @@ import hashlib
 def get_model():
     tokenizer = RobertaTokenizerFast.from_pretrained("ehsanaghaei/SecureBERT_Plus")
     model = RobertaForSequenceClassification.from_pretrained("daxproai/daxpro-BERT")
-    response_model = "tiiuae/falcon-7b-instruct"
-    falcon_tokenizer = AutoTokenizer.from_pretrained(response_model)
-    falcon_pipeline = pipeline(
-        "text-generation",
-        model=response_model,
-        tokenizer=falcon_tokenizer,
-        torch_dtype=torch.bfloat16,
-        trust_remote_code=True,
-        device_map="auto",
-    )
-    return tokenizer,model,falcon_pipeline
+    # response_model = "tiiuae/falcon-7b-instruct"
+    # falcon_tokenizer = AutoTokenizer.from_pretrained(response_model)
+    # falcon_pipeline = pipeline(
+    #     "text-generation",
+    #     model=response_model,
+    #     tokenizer=falcon_tokenizer,
+    #     torch_dtype=torch.bfloat16,
+    #     trust_remote_code=True,
+    #     device_map="auto",
+    # )
+    return tokenizer,model #,falcon_pipeline
 
 
 tokenizer,model = get_model()
@@ -59,13 +59,13 @@ if user_input and button :
     st.write("Logits: ",output.logits)
     y_pred = np.argmax(output.logits.detach().numpy(),axis=1)
     st.write("Prediction: ", id2label[np.argmax(output.logits.detach().numpy(), axis=1).item()])
-    sequences = falcon_pipeline(
-       f"Our Cyber Security model 'DAXPRO_Bert' detected {id2label[np.argmax(output.logits.detach().numpy(), axis=1).item()]}. Propose security policies and procedures for data protection, password management, and social engineering awareness, if 'DAXPRO_Bert' detected a cyber threat.",
-        max_length=200,
-        do_sample=True,
-        top_k=10,
-        num_return_sequences=1,
-        eos_token_id=falcon_tokenizer.eos_token_id,
-    )
-    for seq in sequences:
-        st.write("Response: ", seq['generated_text'])
+    # sequences = falcon_pipeline(
+    #    f"Our Cyber Security model 'DAXPRO_Bert' detected {id2label[np.argmax(output.logits.detach().numpy(), axis=1).item()]}. Propose security policies and procedures for data protection, password management, and social engineering awareness, if 'DAXPRO_Bert' detected a cyber threat.",
+    #     max_length=200,
+    #     do_sample=True,
+    #     top_k=10,
+    #     num_return_sequences=1,
+    #     eos_token_id=falcon_tokenizer.eos_token_id,
+    # )
+    # for seq in sequences:
+    #     st.write("Response: ", seq['generated_text'])
