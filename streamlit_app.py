@@ -1,6 +1,6 @@
 import streamlit as st
 import numpy as np
-from transformers import RobertaTokenizerFast, RobertaForSequenceClassification, pipeline
+from transformers import AutoTokenizer, RobertaTokenizerFast, RobertaForSequenceClassification, pipeline
 import torch
 import hashlib
 
