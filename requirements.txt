@@ -1,8 +1,5 @@
 streamlit
-io
 torch
 accelerate
 transformers
 datasets
-pyshark
-scapy
