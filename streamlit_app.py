@@ -1,3 +1,8 @@
+from pathlib import Path
+import sys
+import re
+import hashlib
+from tempfile import NamedTemporaryFile
 import streamlit as st
 import functools
 import numpy as np
@@ -5,11 +10,21 @@ import pandas as pd
 from transformers import AutoTokenizer, RobertaTokenizerFast, RobertaForSequenceClassification, pipeline
 from datasets import Dataset
 import torch
-import hashlib
-from tempfile import NamedTemporaryFile
 import pyshark
-import re
 
+# Get the absolute path of the current file
+file_path = Path(__file__).resolve()
+
+# Get the parent directory of the current file
+root_path = file_path.parent
+
+# Add the root path to the sys.path list if it is not already there
+if root_path not in sys.path:
+    sys.path.append(str(root_path))
+
+# Get the relative path of the root directory with respect to the current working directory
+ROOT = root_path.relative_to(Path.cwd())
+DEFAULT_CSV = ROOT / 'DNN_EdgeIIoT_CompiledData.csv'
 
 # @st.cache(allow_output_mutation=True)
 # @st.cache_data
@@ -94,6 +109,9 @@ def pcap2dataframe(pcap_file):
         
     # Convert list of dictionaries to pandas DataFrame
     df = pd.DataFrame(data)
+    temp = pd.to_datetime(df['frame.time']).dt.strftime("%Y %H:%M:%S")
+    df = df.replace({':':''}, regex=True)
+    df['frame.time'] = temp
     
     # Save DataFrame to CSV file
     # df.to_csv("output.csv", index=False)
@@ -119,7 +137,7 @@ def dataframe_with_selections(df):
     # Filter the dataframe using the temporary column, then drop the column
     selected_rows = df_with_selections[edited_df.Select]
     return selected_rows.drop('Select', axis=1)
-    
+
 tokenizer,model = get_model()
 # tokenizer,model,falcon_pipeline = get_model()
 
@@ -155,56 +173,58 @@ if user_input:
     else:
         # st.write(user_input.type)
         st.error("Please select a valid source type!")
+elif user_input is None:
+    df = pd.read_csv(DEFAULT_CSV)
 
-    df_sel = dataframe_with_selections(df)
-    if len(df_sel) > 0 and button:
-        df_llm = pd.DataFrame(columns=['Text'])
-        df_llm['Text'] = df_sel[df_sel.columns[:-2]].apply(lambda x: x.name+'$'+x.astype(str), axis=0).apply(np.vectorize(lambda x: hashlib.shake_256(x.encode("utf-8")).hexdigest(16)), axis=0).agg(' '.join, axis=1)
-        ds_llm = Dataset.from_pandas(df_llm)
-        # st.dataframe(ds_llm, use_container_width=True)
+df_sel = dataframe_with_selections(df)
+if len(df_sel) > 0 and button:
+    df_llm = pd.DataFrame(columns=['Text'])
+    df_llm['Text'] = df_sel[df_sel.columns[:-2]].apply(lambda x: x.name+'$'+x.astype(str), axis=0).apply(np.vectorize(lambda x: hashlib.shake_256(x.encode("utf-8")).hexdigest(16)), axis=0).agg(' '.join, axis=1)
+    ds_llm = Dataset.from_pandas(df_llm)
+    # st.dataframe(ds_llm, use_container_width=True)
+    
+    # test_sample = tokenizer([user_input], add_special_tokens=True, truncation=True, padding="max_length", max_length=512, return_tensors='pt')
+    test_sample = tokenizer(ds_llm['Text'], add_special_tokens=True, truncation=True, padding="max_length", max_length=512, return_tensors='pt')
+    test_sample = {k: v for k,v in test_sample.items()}
+    
+    output = model(**test_sample)
+    y_pred = np.argmax(output.logits.detach().numpy(),axis=1)
+    for i in range(len(y_pred.tolist())):
+        st.write("Actual Output: ", df_sel[df_sel.columns[-1]].iloc[i])
+        st.write("Predicted Output: ", id2label[y_pred[i].item()])
         
-        # test_sample = tokenizer([user_input], add_special_tokens=True, truncation=True, padding="max_length", max_length=512, return_tensors='pt')
-        test_sample = tokenizer(ds_llm['Text'], add_special_tokens=True, truncation=True, padding="max_length", max_length=512, return_tensors='pt')
-        test_sample = {k: v for k,v in test_sample.items()}
+    # sequences = falcon_pipeline(
+    #    f"Our Cyber Security model 'DAXPRO_Bert' detected {id2label[np.argmax(output.logits.detach().numpy(), axis=1).item()]}. Propose security policies and procedures for data protection, password management, and social engineering awareness for the particular cyber threat detected above by 'DAXPRO_Bert'.",
+    #     max_length=200,
+    #     do_sample=True,
+    #     top_k=10,
+    #     num_return_sequences=1,
+    #     eos_token_id=falcon_tokenizer.eos_token_id,
+    # )
+    # for seq in sequences:
+    #     st.write("Response: ", seq['generated_text'])
+elif len(df_sel) <= 0 and button:
+    df_llm = pd.DataFrame(columns=['Text'])
+    df_llm['Text'] = df[df.columns[:-2]].apply(lambda x: x.name+'$'+x.astype(str), axis=0).apply(np.vectorize(lambda x: hashlib.shake_256(x.encode("utf-8")).hexdigest(16)), axis=0).agg(' '.join, axis=1)
+    ds_llm = Dataset.from_pandas(df_llm)
+    # st.dataframe(ds_llm, use_container_width=True)
+    
+    # test_sample = tokenizer([user_input], add_special_tokens=True, truncation=True, padding="max_length", max_length=512, return_tensors='pt')
+    test_sample = tokenizer(ds_llm['Text'], add_special_tokens=True, truncation=True, padding="max_length", max_length=512, return_tensors='pt')
+    test_sample = {k: v for k,v in test_sample.items()}
+    
+    output = model(**test_sample)
+    y_pred = np.argmax(output.logits.detach().numpy(),axis=1)
+    for i in range(len(y_pred.tolist())):
+        st.write("Actual Output: ", df[df.columns[-1]].iloc[i], "\n Predicted Output: ", id2label[y_pred[i].item()])
         
-        output = model(**test_sample)
-        y_pred = np.argmax(output.logits.detach().numpy(),axis=1)
-        for i in range(len(y_pred.tolist())):
-            st.write("Actual Output: ", df_sel[df_sel.columns[-1]].iloc[i])
-            st.write("Predicted Output: ", id2label[y_pred[i].item()])
-            
-        # sequences = falcon_pipeline(
-        #    f"Our Cyber Security model 'DAXPRO_Bert' detected {id2label[np.argmax(output.logits.detach().numpy(), axis=1).item()]}. Propose security policies and procedures for data protection, password management, and social engineering awareness for the particular cyber threat detected above by 'DAXPRO_Bert'.",
-        #     max_length=200,
-        #     do_sample=True,
-        #     top_k=10,
-        #     num_return_sequences=1,
-        #     eos_token_id=falcon_tokenizer.eos_token_id,
-        # )
-        # for seq in sequences:
-        #     st.write("Response: ", seq['generated_text'])
-    elif len(df_sel) <= 0 and button:
-        df_llm = pd.DataFrame(columns=['Text'])
-        df_llm['Text'] = df[df.columns[:-2]].apply(lambda x: x.name+'$'+x.astype(str), axis=0).apply(np.vectorize(lambda x: hashlib.shake_256(x.encode("utf-8")).hexdigest(16)), axis=0).agg(' '.join, axis=1)
-        ds_llm = Dataset.from_pandas(df_llm)
-        # st.dataframe(ds_llm, use_container_width=True)
-        
-        # test_sample = tokenizer([user_input], add_special_tokens=True, truncation=True, padding="max_length", max_length=512, return_tensors='pt')
-        test_sample = tokenizer(ds_llm['Text'], add_special_tokens=True, truncation=True, padding="max_length", max_length=512, return_tensors='pt')
-        test_sample = {k: v for k,v in test_sample.items()}
-        
-        output = model(**test_sample)
-        y_pred = np.argmax(output.logits.detach().numpy(),axis=1)
-        for i in range(len(y_pred.tolist())):
-            st.write("Actual Output: ", df[df.columns[-1]].iloc[i], "\n Predicted Output: ", id2label[y_pred[i].item()])
-            
-        # sequences = falcon_pipeline(
-        #    f"Our Cyber Security model 'DAXPRO_Bert' detected {id2label[np.argmax(output.logits.detach().numpy(), axis=1).item()]}. Propose security policies and procedures for data protection, password management, and social engineering awareness for the particular cyber threat detected above by 'DAXPRO_Bert'.",
-        #     max_length=200,
-        #     do_sample=True,
-        #     top_k=10,
-        #     num_return_sequences=1,
-        #     eos_token_id=falcon_tokenizer.eos_token_id,
-        # )
-        # for seq in sequences:
-        #     st.write("Response: ", seq['generated_text'])
+    # sequences = falcon_pipeline(
+    #    f"Our Cyber Security model 'DAXPRO_Bert' detected {id2label[np.argmax(output.logits.detach().numpy(), axis=1).item()]}. Propose security policies and procedures for data protection, password management, and social engineering awareness for the particular cyber threat detected above by 'DAXPRO_Bert'.",
+    #     max_length=200,
+    #     do_sample=True,
+    #     top_k=10,
+    #     num_return_sequences=1,
+    #     eos_token_id=falcon_tokenizer.eos_token_id,
+    # )
+    # for seq in sequences:
+    #     st.write("Response: ", seq['generated_text'])
